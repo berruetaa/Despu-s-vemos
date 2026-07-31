@@ -821,6 +821,19 @@ fun PlaylistListItem(
                 modifier = Modifier.size(16.dp).padding(end = 2.dp)
             )
         }
+        if (!autoPlaylist) {
+            Icon(
+                painter = painterResource(
+                    if (playlist.playlist.browseId != null) R.drawable.sync else R.drawable.offline
+                ),
+                contentDescription = stringResource(
+                    if (playlist.playlist.browseId != null) R.string.playlist_synced_with_youtube_music
+                    else R.string.playlist_local_only
+                ),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(16.dp).padding(end = 2.dp)
+            )
+        }
         Icon.Download(downloadState)
     },
     trailingContent: @Composable RowScope.() -> Unit = {},
@@ -909,6 +922,19 @@ fun PlaylistGridItem(
             Icon(
                 painter = painterResource(R.drawable.ic_push_pin),
                 contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(16.dp).padding(end = 2.dp)
+            )
+        }
+        if (!autoPlaylist) {
+            Icon(
+                painter = painterResource(
+                    if (playlist.playlist.browseId != null) R.drawable.sync else R.drawable.offline
+                ),
+                contentDescription = stringResource(
+                    if (playlist.playlist.browseId != null) R.string.playlist_synced_with_youtube_music
+                    else R.string.playlist_local_only
+                ),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(16.dp).padding(end = 2.dp)
             )

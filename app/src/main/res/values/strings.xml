@@ -231,6 +231,8 @@
     <string name="playlist_imported">Playlist imported</string>
     <string name="removed_song_from_playlist">Removed \"%s\" from playlist</string>
     <string name="playlist_synced">Playlist synced</string>
+    <string name="playlist_synced_with_youtube_music">Synced with YouTube Music</string>
+    <string name="playlist_local_only">Local only</string>
     <string name="undo">Undo</string>
 
     <!-- Player -->

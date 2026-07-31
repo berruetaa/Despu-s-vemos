@@ -492,11 +492,16 @@ fun LocalPlaylistScreen(
                         val successorSetVideoId = playlistSongMap.getOrNull(successorIndex)?.setVideoId
 
                         playlistSongMap.getOrNull(from)?.setVideoId?.let { setVideoId ->
-                            YouTube.moveSongPlaylist(
+                            val result = YouTube.moveSongPlaylist(
                                 viewModel.playlist.value?.playlist?.browseId!!,
                                 setVideoId,
                                 successorSetVideoId
                             )
+                            if (result.isFailure) {
+                                withContext(Dispatchers.Main) {
+                                    Toast.makeText(context, "Failed to sync playlist order", Toast.LENGTH_SHORT).show()
+                                }
+                            }
                         }
                     }
                 }
@@ -610,25 +615,28 @@ fun LocalPlaylistScreen(
                     val currentItem by rememberUpdatedState(song)
 
                     fun deleteFromPlaylist() {
-                        database.transaction {
-                            coroutineScope.launch {
-                                playlist?.playlist?.browseId?.let { browseId ->
-                                    val setVideoId = getSetVideoId(currentItem.map.songId)
-                                    setVideoId?.setVideoId?.let { setVideoIdValue ->
-                                        YouTube.removeFromPlaylist(
-                                            browseId,
-                                            currentItem.map.songId,
-                                            setVideoIdValue
-                                        )
-                                    }
+                        coroutineScope.launch {
+                            val browseId = playlist?.playlist?.browseId
+                            val setVideoId = currentItem.map.setVideoId
+                            if (browseId != null && setVideoId != null) {
+                                val result = YouTube.removeFromPlaylist(
+                                    browseId,
+                                    currentItem.map.songId,
+                                    setVideoId
+                                )
+                                if (result.isFailure) {
+                                    Toast.makeText(context, "Failed to remove from playlist", Toast.LENGTH_SHORT).show()
+                                    return@launch
                                 }
                             }
-                            move(
-                                currentItem.map.playlistId,
-                                currentItem.map.position,
-                                Int.MAX_VALUE
-                            )
-                            delete(currentItem.map.copy(position = Int.MAX_VALUE))
+                            database.transaction {
+                                move(
+                                    currentItem.map.playlistId,
+                                    currentItem.map.position,
+                                    Int.MAX_VALUE
+                                )
+                                delete(currentItem.map.copy(position = Int.MAX_VALUE))
+                            }
                         }
                     }
 

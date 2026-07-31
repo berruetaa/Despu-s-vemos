@@ -593,24 +593,27 @@ fun SongMenu(
                                     )
                                 },
                                 onClick = {
-                                    database.transaction {
-                                        coroutineScope.launch {
-                                            playlistBrowseId?.let { playlistId ->
-                                                if (playlistSong.map.setVideoId != null) {
-                                                    YouTube.removeFromPlaylist(
-                                                        playlistId,
-                                                        playlistSong.map.songId,
-                                                        playlistSong.map.setVideoId
-                                                    )
-                                                }
+                                    coroutineScope.launch {
+                                        val setVideoId = playlistSong.map.setVideoId
+                                        if (playlistBrowseId != null && setVideoId != null) {
+                                            val result = YouTube.removeFromPlaylist(
+                                                playlistBrowseId,
+                                                playlistSong.map.songId,
+                                                setVideoId
+                                            )
+                                            if (result.isFailure) {
+                                                android.widget.Toast.makeText(context, "Failed to remove from playlist", android.widget.Toast.LENGTH_SHORT).show()
+                                                return@launch
                                             }
                                         }
-                                        move(
-                                            playlistSong.map.playlistId,
-                                            playlistSong.map.position,
-                                            Int.MAX_VALUE
-                                        )
-                                        delete(playlistSong.map.copy(position = Int.MAX_VALUE))
+                                        database.transaction {
+                                            move(
+                                                playlistSong.map.playlistId,
+                                                playlistSong.map.position,
+                                                Int.MAX_VALUE
+                                            )
+                                            delete(playlistSong.map.copy(position = Int.MAX_VALUE))
+                                        }
                                     }
                                     onDismiss()
                                 }
