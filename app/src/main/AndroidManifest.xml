@@ -469,7 +469,7 @@
             android:exported="false"
             android:launchMode="singleTop"
             android:supportsPictureInPicture="true"
-            android:theme="@style/Theme.Material3.DayNight.NoActionBar" />
+            android:theme="@style/Theme.echomusic" />
 
         <receiver
             android:name=".pip.PipActionReceiver"
