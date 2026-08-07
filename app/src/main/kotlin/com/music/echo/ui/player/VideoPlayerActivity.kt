@@ -28,7 +28,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -40,7 +39,6 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -130,10 +128,6 @@ class VideoPlayerActivity : ComponentActivity() {
         }
     }
 
-    override fun onPause() {
-        super.onPause()
-    }
-
     override fun onDestroy() {
         super.onDestroy()
         exoPlayer?.release()
@@ -209,10 +203,6 @@ private fun VideoPlayerContent(
             }
             delay(150)
         }
-    }
-
-    DisposableEffect(Unit) {
-        onDispose { exoPlayer.release() }
     }
 
     LaunchedEffect(showControls) {
