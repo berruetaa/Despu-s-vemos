@@ -1,6 +1,7 @@
 package iad1tya.echo.music.ui.player
 
 import android.content.pm.ActivityInfo
+import android.os.Build
 import android.os.Bundle
 import android.view.ScaleGestureDetector
 import android.view.View
@@ -69,6 +70,7 @@ import androidx.media3.ui.PlayerView
 import com.music.innertube.pages.VideoStreamExtractor
 import com.music.innertube.pages.VideoStreamExtractor.VideoQuality
 import iad1tya.echo.music.R
+import iad1tya.echo.music.pip.PipHelper
 import iad1tya.echo.music.ui.theme.echomusicTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
@@ -81,6 +83,8 @@ class VideoPlayerActivity : ComponentActivity() {
         const val EXTRA_VIDEO_ID = "VIDEO_ID"
         const val EXTRA_START_POSITION = "START_POSITION"
     }
+
+    private var exoPlayer: ExoPlayer? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -118,6 +122,9 @@ class VideoPlayerActivity : ComponentActivity() {
                         setResult(RESULT_OK)
                         finish()
                     },
+                    onPlayerReady = { player ->
+                        exoPlayer = player
+                    }
                 )
             }
         }
@@ -129,6 +136,27 @@ class VideoPlayerActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        exoPlayer?.release()
+        exoPlayer = null
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            try {
+                enterPictureInPictureMode(
+                    PipHelper.buildPipParams(
+                        this,
+                        isPlaying = exoPlayer?.isPlaying == true,
+                        isVideo = true
+                    )
+                )
+            } catch (_: Exception) {}
+        }
+    }
+
+    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode)
     }
 }
 
@@ -149,6 +177,7 @@ private fun VideoPlayerContent(
     videoId: String,
     startPosition: Long,
     onBack: () -> Unit,
+    onPlayerReady: (ExoPlayer) -> Unit = {},
 ) {
     val context = LocalContext.current
     var isLoading by remember { mutableStateOf(true) }
@@ -171,6 +200,7 @@ private fun VideoPlayerContent(
     }
 
     LaunchedEffect(exoPlayer) {
+        onPlayerReady(exoPlayer)
         while (true) {
             exoPlayer.let { player ->
                 isPlaying = player.isPlaying
