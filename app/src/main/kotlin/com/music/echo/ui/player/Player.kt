@@ -15,6 +15,8 @@ import android.media.AudioManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -300,6 +302,16 @@ fun BottomSheetPlayer(
     val menuState = LocalMenuState.current
     val bottomSheetPageState = LocalBottomSheetPageState.current
     val playerConnection = LocalPlayerConnection.current ?: return
+
+    val videoLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            val pos = result.data?.getLongExtra("FINAL_POSITION", 0L) ?: 0L
+            if (pos > 0) playerConnection.player.seekTo(pos)
+            playerConnection.player.play()
+        }
+    }
 
     val (useNewPlayerDesign, onUseNewPlayerDesignChange) = rememberPreference(
         UseNewPlayerDesignKey,
@@ -1518,14 +1530,12 @@ fun BottomSheetPlayer(
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(textButtonColor)
                                 .clickable {
+                                    val startPos = playerConnection.player.currentPosition
                                     playerConnection.player.pause()
-                                    context.startActivity(
+                                    videoLauncher.launch(
                                         Intent(context, VideoPlayerActivity::class.java).apply {
                                             putExtra(VideoPlayerActivity.EXTRA_VIDEO_ID, mediaMetadata.id)
-                                            putExtra(
-                                                VideoPlayerActivity.EXTRA_START_POSITION,
-                                                playerConnection.player.currentPosition
-                                            )
+                                            putExtra(VideoPlayerActivity.EXTRA_START_POSITION, startPos)
                                         }
                                     )
                                 }
