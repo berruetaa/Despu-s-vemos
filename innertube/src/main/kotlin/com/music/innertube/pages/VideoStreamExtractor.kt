@@ -12,6 +12,7 @@ object VideoStreamExtractor {
         val itag: Int,
         val height: Int?,
         val url: String,
+        val audioUrl: String?,
     )
 
     suspend fun getVideoQualities(videoId: String): List<VideoQuality> {
@@ -36,6 +37,11 @@ object VideoStreamExtractor {
 
             val streamingData = response.streamingData ?: continue
 
+            val bestAudioUrl = streamingData.adaptiveFormats
+                .filter { it.width == null && it.mimeType.startsWith("audio/") }
+                .maxByOrNull { it.bitrate }
+                ?.let { NewPipeExtractor.getStreamUrl(it, videoId) }
+
             val qualities = streamingData.adaptiveFormats
                 .filter { it.width != null && it.qualityLabel != null }
                 .sortedByDescending { it.height ?: 0 }
@@ -46,6 +52,7 @@ object VideoStreamExtractor {
                         itag = format.itag,
                         height = format.height,
                         url = url,
+                        audioUrl = bestAudioUrl,
                     )
                 }
                 .distinctBy { it.height }
