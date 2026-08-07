@@ -63,6 +63,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -313,6 +314,10 @@ fun BottomSheetPlayer(
         }
     }
 
+    var showVideo by remember { mutableStateOf(false) }
+    var videoStartPosition by remember { mutableLongStateOf(0L) }
+    var inlineVideoPlayer by remember { mutableStateOf<ExoPlayer?>(null) }
+
     val (useNewPlayerDesign, onUseNewPlayerDesignChange) = rememberPreference(
         UseNewPlayerDesignKey,
         defaultValue = true
@@ -323,6 +328,11 @@ fun BottomSheetPlayer(
     val cropAlbumArt by rememberPreference(CropAlbumArtKey, false)
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
     val isLocalMedia = mediaMetadata?.id?.isLocalMediaId() == true
+
+    LaunchedEffect(mediaMetadata?.id) {
+        showVideo = false
+        inlineVideoPlayer = null
+    }
 
     val playerBackgroundPref by rememberEnumPreference(
         key = PlayerBackgroundStyleKey,
@@ -1524,20 +1534,15 @@ fun BottomSheetPlayer(
                             onSwipeLeft = { playerConnection.seekToNext() }
                         )
                 ) {
-                    if (mediaMetadata.isVideoSong) {
+                    if (mediaMetadata.isVideoSong && !showVideo) {
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(textButtonColor)
                                 .clickable {
-                                    val startPos = playerConnection.player.currentPosition
+                                    videoStartPosition = playerConnection.player.currentPosition
                                     playerConnection.player.pause()
-                                    videoLauncher.launch(
-                                        Intent(context, VideoPlayerActivity::class.java).apply {
-                                            putExtra(VideoPlayerActivity.EXTRA_VIDEO_ID, mediaMetadata.id)
-                                            putExtra(VideoPlayerActivity.EXTRA_START_POSITION, startPos)
-                                        }
-                                    )
+                                    showVideo = true
                                 }
                                 .padding(horizontal = 14.dp, vertical = 8.dp),
                         ) {
@@ -2818,46 +2823,87 @@ fun BottomSheetPlayer(
                             .weight(1f)
                             .nestedScroll(state.preUpPostDownNestedScrollConnection)
                     ) {
-                        val currentSliderPosition by rememberUpdatedState(sliderPosition)
-                        val sliderPositionProvider = remember { { currentSliderPosition } }
-                        val isExpandedProvider = remember(state) { { state.isExpanded } }
-                        AnimatedContent(
-                            targetState = showInlineLyrics,
-                            label = "Lyrics",
-                            transitionSpec = { fadeIn() togetherWith fadeOut() }
-                        ) { showLyrics ->
-                            if (showLyrics) {
-                                InlineLyricsView(
-                                    mediaMetadata = mediaMetadata,
-                                    showLyrics = showLyrics,
-                                    positionProvider = { effectivePosition }
-                                )
-                            } else {
-                                Thumbnail(
-                                    sliderPositionProvider = sliderPositionProvider,
-                                    modifier = Modifier.animateContentSize(),
-                                    isPlayerExpanded = isExpandedProvider,
-                                    isLandscape = true,
-                                    isListenTogetherGuest = isListenTogetherGuest
-                                )
+                        val videoMetadata = mediaMetadata?.takeIf { showVideo && it.isVideoSong }
+                        if (videoMetadata != null) {
+                            VideoPlayerContent(
+                                videoId = videoMetadata.id,
+                                startPosition = videoStartPosition,
+                                isEmbedded = true,
+                                modifier = Modifier.fillMaxSize().padding(horizontal = PlayerHorizontalPadding),
+                                onPlayerReady = { inlineVideoPlayer = it },
+                                onRequestFullscreen = {
+                                    val pos = inlineVideoPlayer?.currentPosition ?: videoStartPosition
+                                    videoLauncher.launch(
+                                        Intent(context, VideoPlayerActivity::class.java).apply {
+                                            putExtra(VideoPlayerActivity.EXTRA_VIDEO_ID, videoMetadata.id)
+                                            putExtra(VideoPlayerActivity.EXTRA_START_POSITION, pos)
+                                        }
+                                    )
+                                    showVideo = false
+                                    inlineVideoPlayer = null
+                                },
+                                onBack = {
+                                    val pos = inlineVideoPlayer?.currentPosition ?: videoStartPosition
+                                    playerConnection.player.seekTo(pos)
+                                    playerConnection.player.play()
+                                    showVideo = false
+                                    inlineVideoPlayer = null
+                                }
+                            )
+                        } else {
+                            val currentSliderPosition by rememberUpdatedState(sliderPosition)
+                            val sliderPositionProvider = remember { { currentSliderPosition } }
+                            val isExpandedProvider = remember(state) { { state.isExpanded } }
+                            AnimatedContent(
+                                targetState = showInlineLyrics,
+                                label = "Lyrics",
+                                transitionSpec = { fadeIn() togetherWith fadeOut() }
+                            ) { showLyrics ->
+                                if (showLyrics) {
+                                    InlineLyricsView(
+                                        mediaMetadata = mediaMetadata,
+                                        showLyrics = showLyrics,
+                                        positionProvider = { effectivePosition }
+                                    )
+                                } else {
+                                    Thumbnail(
+                                        sliderPositionProvider = sliderPositionProvider,
+                                        modifier = Modifier.animateContentSize(),
+                                        isPlayerExpanded = isExpandedProvider,
+                                        isLandscape = true,
+                                        isListenTogetherGuest = isListenTogetherGuest
+                                    )
+                                }
                             }
                         }
                     }
 
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier
-                            .weight(if (showInlineLyrics) 0.65f else 1f, false)
-                            .animateContentSize()
-                            .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top))
-                    ) {
-                        Spacer(Modifier.weight(1f))
+                    Box(modifier = Modifier.weight(if (showInlineLyrics) 0.65f else 1f, false)) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .animateContentSize()
+                                .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top))
+                        ) {
+                            Spacer(Modifier.weight(1f))
 
-                        mediaMetadata?.let {
-                            controlsContent(it)
+                            mediaMetadata?.let {
+                                controlsContent(it)
+                            }
+
+                            Spacer(Modifier.weight(1f))
                         }
-
-                        Spacer(Modifier.weight(1f))
+                        if (showVideo) {
+                            Box(
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null
+                                    ) {}
+                            )
+                        }
                     }
                 }
             }
@@ -2880,36 +2926,79 @@ fun BottomSheetPlayer(
                         modifier = Modifier
                             .weight(1f),
                     ) {
-                        val currentSliderPosition by rememberUpdatedState(sliderPosition)
-                        val sliderPositionProvider = remember { { currentSliderPosition } }
-                        val isExpandedProvider = remember(state) { { state.isExpanded } }
-                        AnimatedContent(
-                            targetState = showInlineLyrics,
-                            label = "Lyrics",
-                            transitionSpec = { fadeIn() togetherWith fadeOut() }
-                        ) { showLyrics ->
-                            if (showLyrics) {
-                                InlineLyricsView(
-                                    mediaMetadata = mediaMetadata,
-                                    showLyrics = showLyrics,
-                                    positionProvider = { effectivePosition }
-                                )
-                            } else {
-                                Thumbnail(
-                                    sliderPositionProvider = sliderPositionProvider,
-                                    modifier = Modifier.nestedScroll(state.preUpPostDownNestedScrollConnection),
-                                    isPlayerExpanded = isExpandedProvider,
-                                    isListenTogetherGuest = isListenTogetherGuest
-                                )
+                        val videoMetadata = mediaMetadata?.takeIf { showVideo && it.isVideoSong }
+                        if (videoMetadata != null) {
+                            VideoPlayerContent(
+                                videoId = videoMetadata.id,
+                                startPosition = videoStartPosition,
+                                isEmbedded = true,
+                                modifier = Modifier.fillMaxSize().padding(horizontal = PlayerHorizontalPadding),
+                                onPlayerReady = { inlineVideoPlayer = it },
+                                onRequestFullscreen = {
+                                    val pos = inlineVideoPlayer?.currentPosition ?: videoStartPosition
+                                    videoLauncher.launch(
+                                        Intent(context, VideoPlayerActivity::class.java).apply {
+                                            putExtra(VideoPlayerActivity.EXTRA_VIDEO_ID, videoMetadata.id)
+                                            putExtra(VideoPlayerActivity.EXTRA_START_POSITION, pos)
+                                        }
+                                    )
+                                    showVideo = false
+                                    inlineVideoPlayer = null
+                                },
+                                onBack = {
+                                    val pos = inlineVideoPlayer?.currentPosition ?: videoStartPosition
+                                    playerConnection.player.seekTo(pos)
+                                    playerConnection.player.play()
+                                    showVideo = false
+                                    inlineVideoPlayer = null
+                                }
+                            )
+                        } else {
+                            val currentSliderPosition by rememberUpdatedState(sliderPosition)
+                            val sliderPositionProvider = remember { { currentSliderPosition } }
+                            val isExpandedProvider = remember(state) { { state.isExpanded } }
+                            AnimatedContent(
+                                targetState = showInlineLyrics,
+                                label = "Lyrics",
+                                transitionSpec = { fadeIn() togetherWith fadeOut() }
+                            ) { showLyrics ->
+                                if (showLyrics) {
+                                    InlineLyricsView(
+                                        mediaMetadata = mediaMetadata,
+                                        showLyrics = showLyrics,
+                                        positionProvider = { effectivePosition }
+                                    )
+                                } else {
+                                    Thumbnail(
+                                        sliderPositionProvider = sliderPositionProvider,
+                                        modifier = Modifier.nestedScroll(state.preUpPostDownNestedScrollConnection),
+                                        isPlayerExpanded = isExpandedProvider,
+                                        isListenTogetherGuest = isListenTogetherGuest
+                                    )
+                                }
                             }
                         }
                     }
 
-                    mediaMetadata?.let {
-                        controlsContent(it)
-                    }
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            mediaMetadata?.let {
+                                controlsContent(it)
+                            }
 
-                    Spacer(Modifier.height(if (useNewPlayerDesign) 30.dp else 8.dp))
+                            Spacer(Modifier.height(if (useNewPlayerDesign) 30.dp else 8.dp))
+                        }
+                        if (showVideo) {
+                            Box(
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null
+                                    ) {}
+                            )
+                        }
+                    }
                 }
             }
         }

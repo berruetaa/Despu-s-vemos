@@ -43,6 +43,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -96,6 +97,9 @@ class VideoPlayerActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        // This screen is only ever entered when fullscreen was explicitly requested, so it
+        // never shows the video in portrait.
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
 
         val videoId = intent.getStringExtra(EXTRA_VIDEO_ID) ?: run {
             finish()
@@ -192,11 +196,14 @@ private fun formatTime(milliseconds: Long): String {
 }
 
 @Composable
-private fun VideoPlayerContent(
+internal fun VideoPlayerContent(
     videoId: String,
     startPosition: Long,
     onBack: () -> Unit,
     onPlayerReady: (ExoPlayer) -> Unit = {},
+    modifier: Modifier = Modifier.fillMaxSize(),
+    isEmbedded: Boolean = false,
+    onRequestFullscreen: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     BackHandler(onBack = onBack)
@@ -204,33 +211,6 @@ private fun VideoPlayerContent(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showControls by remember { mutableStateOf(true) }
     var showQualityMenu by remember { mutableStateOf(false) }
-    var isFullscreen by remember { mutableStateOf(false) }
-
-    fun applyFullscreen(fullscreen: Boolean) {
-        isFullscreen = fullscreen
-        val activity = (context as? android.app.Activity) ?: return
-        if (fullscreen) {
-            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-            activity.window.decorView.post {
-                activity.window.insetsController?.let {
-                    it.hide(WindowInsets.Type.systemBars())
-                    it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                }
-                @Suppress("DEPRECATION")
-                activity.window.decorView.systemUiVisibility = (
-                    View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                        or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                    )
-            }
-        } else {
-            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-            activity.window.decorView.post {
-                activity.window.insetsController?.show(WindowInsets.Type.systemBars())
-                @Suppress("DEPRECATION")
-                activity.window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
-            }
-        }
-    }
     var videoScale by remember { mutableFloatStateOf(1f) }
     var isPlaying by remember { mutableStateOf(true) }
     var currentPosition by remember { mutableLongStateOf(0L) }
@@ -244,6 +224,10 @@ private fun VideoPlayerContent(
             playWhenReady = true
             repeatMode = Player.REPEAT_MODE_OFF
         }
+    }
+
+    DisposableEffect(exoPlayer) {
+        onDispose { exoPlayer.release() }
     }
 
     LaunchedEffect(exoPlayer) {
@@ -317,8 +301,7 @@ private fun VideoPlayerContent(
     }
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
+        modifier = modifier
             .background(Color.Black)
     ) {
         AndroidView(
@@ -390,13 +373,15 @@ private fun VideoPlayerContent(
                             modifier = Modifier.size(28.dp)
                         )
                     }
-                    IconButton(onClick = { applyFullscreen(!isFullscreen) }) {
-                        Icon(
-                            painter = painterResource(R.drawable.fullscreen),
-                            contentDescription = if (isFullscreen) "Exit fullscreen" else "Fullscreen",
-                            tint = Color.White,
-                            modifier = Modifier.size(22.dp)
-                        )
+                    if (isEmbedded && onRequestFullscreen != null) {
+                        IconButton(onClick = onRequestFullscreen) {
+                            Icon(
+                                painter = painterResource(R.drawable.fullscreen),
+                                contentDescription = "Fullscreen",
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
                     }
                     Spacer(modifier = Modifier.weight(1f))
                     if (qualities.isNotEmpty()) {
