@@ -1,5 +1,6 @@
 package com.music.innertube.pages
 
+import com.music.innertube.NewPipeExtractor
 import com.music.innertube.YouTube
 import com.music.innertube.models.YouTubeClient
 import com.music.innertube.models.response.PlayerResponse
