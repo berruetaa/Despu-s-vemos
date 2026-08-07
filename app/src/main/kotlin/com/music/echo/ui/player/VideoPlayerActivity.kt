@@ -1,5 +1,6 @@
 package iad1tya.echo.music.ui.player
 
+import android.content.pm.ActivityInfo
 import android.os.Build
 import android.os.Bundle
 import android.view.ScaleGestureDetector
@@ -105,7 +106,9 @@ class VideoPlayerActivity : ComponentActivity() {
                     videoId = videoId,
                     startPosition = startPosition,
                     onBack = {
-                        setResult(RESULT_OK)
+                        val pos = exoPlayer?.currentPosition ?: 0L
+                        intent.putExtra("FINAL_POSITION", pos)
+                        setResult(RESULT_OK, intent)
                         finish()
                     },
                     onPlayerReady = { player ->
@@ -183,6 +186,33 @@ private fun VideoPlayerContent(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showControls by remember { mutableStateOf(true) }
     var showQualityMenu by remember { mutableStateOf(false) }
+    var isFullscreen by remember { mutableStateOf(false) }
+
+    fun applyFullscreen(fullscreen: Boolean) {
+        isFullscreen = fullscreen
+        val activity = (context as? android.app.Activity) ?: return
+        if (fullscreen) {
+            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            activity.window.decorView.post {
+                activity.window.insetsController?.let {
+                    it.hide(WindowInsets.Type.systemBars())
+                    it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                }
+                @Suppress("DEPRECATION")
+                activity.window.decorView.systemUiVisibility = (
+                    View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                        or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                    )
+            }
+        } else {
+            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            activity.window.decorView.post {
+                activity.window.insetsController?.show(WindowInsets.Type.systemBars())
+                @Suppress("DEPRECATION")
+                activity.window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+            }
+        }
+    }
     var videoScale by remember { mutableFloatStateOf(1f) }
     var isPlaying by remember { mutableStateOf(true) }
     var currentPosition by remember { mutableLongStateOf(0L) }
@@ -340,6 +370,14 @@ private fun VideoPlayerContent(
                             contentDescription = "Back",
                             tint = Color.White,
                             modifier = Modifier.size(28.dp)
+                        )
+                    }
+                    IconButton(onClick = { applyFullscreen(!isFullscreen) }) {
+                        Icon(
+                            painter = painterResource(R.drawable.fullscreen),
+                            contentDescription = if (isFullscreen) "Exit fullscreen" else "Fullscreen",
+                            tint = Color.White,
+                            modifier = Modifier.size(22.dp)
                         )
                     }
                     Spacer(modifier = Modifier.weight(1f))
