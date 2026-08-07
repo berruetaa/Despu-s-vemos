@@ -1,3 +1,5 @@
 /build
 *.keystore
+# Debug-only signing key, shared across builds so debug APKs install as updates
+!persistent-debug.keystore
 src/main/cpp/vibrafp/third_party/fftw-android/
