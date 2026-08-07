@@ -1512,6 +1512,45 @@ fun BottomSheetPlayer(
                             onSwipeLeft = { playerConnection.seekToNext() }
                         )
                 ) {
+                    if (mediaMetadata.isVideoSong) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(textButtonColor)
+                                .clickable {
+                                    playerConnection.player.pause()
+                                    context.startActivity(
+                                        Intent(context, VideoPlayerActivity::class.java).apply {
+                                            putExtra(VideoPlayerActivity.EXTRA_VIDEO_ID, mediaMetadata.id)
+                                            putExtra(
+                                                VideoPlayerActivity.EXTRA_START_POSITION,
+                                                playerConnection.player.currentPosition
+                                            )
+                                        }
+                                    )
+                                }
+                                .padding(horizontal = 14.dp, vertical = 8.dp),
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                Icon(
+                                    painter = painterResource(R.drawable.play),
+                                    contentDescription = "Video",
+                                    tint = iconButtonColor,
+                                    modifier = Modifier.size(14.dp),
+                                )
+                                Text(
+                                    "Video",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = iconButtonColor,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
                     AnimatedContent(
                         targetState = mediaMetadata.title,
                         transitionSpec = { fadeIn() togetherWith fadeOut() },
