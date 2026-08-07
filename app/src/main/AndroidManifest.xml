@@ -463,6 +463,13 @@
             </intent-filter>
         </service>
 
+        <activity
+            android:name=".ui.player.VideoPlayerActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.Material3.DayNight.NoActionBar" />
+
     </application>
 
 </manifest>
