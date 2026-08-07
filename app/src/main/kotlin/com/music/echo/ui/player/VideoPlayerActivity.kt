@@ -25,6 +25,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -65,6 +67,7 @@ import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.music.innertube.pages.VideoStreamExtractor
+import com.music.innertube.pages.VideoStreamExtractor.VideoQuality
 import iad1tya.echo.music.R
 import iad1tya.echo.music.ui.theme.echomusicTheme
 import kotlinx.coroutines.delay
@@ -77,11 +80,7 @@ class VideoPlayerActivity : ComponentActivity() {
     companion object {
         const val EXTRA_VIDEO_ID = "VIDEO_ID"
         const val EXTRA_START_POSITION = "START_POSITION"
-        const val RESULT_FINAL_POSITION = "FINAL_POSITION"
     }
-
-    private var exoPlayer: ExoPlayer? = null
-    private var finalPosition: Long = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -116,24 +115,20 @@ class VideoPlayerActivity : ComponentActivity() {
                     videoId = videoId,
                     startPosition = startPosition,
                     onBack = {
-                        finalPosition = exoPlayer?.currentPosition ?: 0L
-                        intent.putExtra(RESULT_FINAL_POSITION, finalPosition)
-                        setResult(RESULT_OK, intent)
+                        setResult(RESULT_OK)
                         finish()
                     },
-                    onPlayerReady = { player ->
-                        exoPlayer = player
-                    }
                 )
             }
         }
     }
 
+    override fun onPause() {
+        super.onPause()
+    }
+
     override fun onDestroy() {
         super.onDestroy()
-        finalPosition = exoPlayer?.currentPosition ?: 0L
-        exoPlayer?.release()
-        exoPlayer = null
     }
 }
 
@@ -154,17 +149,19 @@ private fun VideoPlayerContent(
     videoId: String,
     startPosition: Long,
     onBack: () -> Unit,
-    onPlayerReady: (ExoPlayer) -> Unit,
 ) {
     val context = LocalContext.current
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showControls by remember { mutableStateOf(true) }
+    var showQualityMenu by remember { mutableStateOf(false) }
     var videoScale by remember { mutableFloatStateOf(1f) }
     var isPlaying by remember { mutableStateOf(true) }
     var currentPosition by remember { mutableLongStateOf(0L) }
     var duration by remember { mutableLongStateOf(0L) }
     var dragOffsetY by remember { mutableFloatStateOf(0f) }
+    var qualities by remember { mutableStateOf<List<VideoQuality>>(emptyList()) }
+    var selectedQualityIndex by remember { mutableStateOf(0) }
 
     val exoPlayer = remember {
         ExoPlayer.Builder(context).build().apply {
@@ -174,7 +171,6 @@ private fun VideoPlayerContent(
     }
 
     LaunchedEffect(exoPlayer) {
-        onPlayerReady(exoPlayer)
         while (true) {
             exoPlayer.let { player ->
                 isPlaying = player.isPlaying
@@ -196,27 +192,36 @@ private fun VideoPlayerContent(
         }
     }
 
+    fun switchQuality(quality: VideoQuality) {
+        val pos = exoPlayer.currentPosition
+        val wasPlaying = exoPlayer.isPlaying
+        val dataSourceFactory = DefaultHttpDataSource.Factory()
+            .setUserAgent("Mozilla/5.0")
+            .setConnectTimeoutMs(10000)
+            .setReadTimeoutMs(10000)
+        val mediaItem = MediaItem.fromUri(quality.url)
+        val mediaSource = ProgressiveMediaSource.Factory(dataSourceFactory)
+            .createMediaSource(mediaItem)
+        exoPlayer.setMediaSource(mediaSource)
+        exoPlayer.prepare()
+        exoPlayer.seekTo(pos)
+        if (wasPlaying) exoPlayer.play()
+    }
+
     LaunchedEffect(videoId) {
         isLoading = true
         errorMessage = null
         try {
-            val url = withContext(Dispatchers.IO) {
-                VideoStreamExtractor.getVideoStreamUrl(videoId)
+            val result = withContext(Dispatchers.IO) {
+                VideoStreamExtractor.getVideoQualities(videoId)
             }
-            if (url != null) {
-                val dataSourceFactory = DefaultHttpDataSource.Factory()
-                    .setUserAgent("Mozilla/5.0")
-                    .setConnectTimeoutMs(10000)
-                    .setReadTimeoutMs(10000)
-                val mediaItem = MediaItem.fromUri(url)
-                val mediaSource = ProgressiveMediaSource.Factory(dataSourceFactory)
-                    .createMediaSource(mediaItem)
-                exoPlayer.setMediaSource(mediaSource)
-                exoPlayer.prepare()
+            if (result.isNotEmpty()) {
+                qualities = result
+                selectedQualityIndex = 0
+                switchQuality(result.first())
                 if (startPosition > 0) {
                     exoPlayer.seekTo(startPosition)
                 }
-                exoPlayer.playWhenReady = true
                 isLoading = false
             } else {
                 errorMessage = "Could not load video stream"
@@ -302,12 +307,38 @@ private fun VideoPlayerContent(
                             modifier = Modifier.size(28.dp)
                         )
                     }
+                    Spacer(modifier = Modifier.weight(1f))
+                    if (qualities.isNotEmpty()) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .background(
+                                    Color.Black.copy(alpha = 0.5f),
+                                    RoundedCornerShape(20.dp)
+                                )
+                                .clip(RoundedCornerShape(20.dp))
+                                .clickable { showQualityMenu = true }
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
+                            Text(
+                                text = qualities.getOrElse(selectedQualityIndex) { qualities.first() }.label,
+                                color = Color.White,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            Icon(
+                                painter = painterResource(R.drawable.tune),
+                                contentDescription = "Quality",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                    }
                 }
 
                 IconButton(
-                    onClick = {
-                        if (isPlaying) exoPlayer.pause() else exoPlayer.play()
-                    },
+                    onClick = { if (isPlaying) exoPlayer.pause() else exoPlayer.play() },
                     modifier = Modifier
                         .align(Alignment.Center)
                         .size(64.dp)
@@ -358,6 +389,67 @@ private fun VideoPlayerContent(
                         style = MaterialTheme.typography.labelSmall,
                         modifier = Modifier.width(48.dp)
                     )
+                }
+            }
+        }
+
+        if (showQualityMenu) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.6f))
+                    .clickable { showQualityMenu = false }
+            ) {
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color(0xFF1C1C1E))
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        text = "Video Quality",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                    qualities.forEachIndexed { index, quality ->
+                        val isSelected = index == selectedQualityIndex
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(
+                                    if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                                    else Color.Transparent
+                                )
+                                .clickable {
+                                    selectedQualityIndex = index
+                                    switchQuality(quality)
+                                    showQualityMenu = false
+                                    showControls = false
+                                }
+                                .padding(horizontal = 12.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = quality.label,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else Color.White,
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            )
+                            if (isSelected) {
+                                Icon(
+                                    painter = painterResource(R.drawable.check),
+                                    contentDescription = "Selected",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }

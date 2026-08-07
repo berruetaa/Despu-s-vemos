@@ -6,7 +6,14 @@ import com.music.innertube.models.response.PlayerResponse
 
 object VideoStreamExtractor {
 
-    suspend fun getVideoStreamUrl(videoId: String): String? {
+    data class VideoQuality(
+        val label: String,
+        val itag: Int,
+        val height: Int?,
+        val url: String,
+    )
+
+    suspend fun getVideoQualities(videoId: String): List<VideoQuality> {
         val signatureTimestamp = NewPipeExtractor.getSignatureTimestamp(videoId).getOrNull()
 
         val playerClients = listOf(
@@ -28,35 +35,28 @@ object VideoStreamExtractor {
 
             val streamingData = response.streamingData ?: continue
 
-            val bestFormat = streamingData.adaptiveFormats
-                .filter { it.width != null }
-                .sortedWith(
-                    compareByDescending<PlayerResponse.StreamingData.Format> {
-                        it.mimeType.startsWith("video/mp4")
-                    }
-                        .thenByDescending { it.height ?: 0 }
-                        .thenByDescending { it.bitrate },
-                )
-                .firstOrNull() ?: continue
+            val qualities = streamingData.adaptiveFormats
+                .filter { it.width != null && it.qualityLabel != null }
+                .sortedByDescending { it.height ?: 0 }
+                .mapNotNull { format ->
+                    val url = NewPipeExtractor.getStreamUrl(format, videoId) ?: return@mapNotNull null
+                    VideoQuality(
+                        label = format.qualityLabel ?: format.height?.let { "${it}p" } ?: "Unknown",
+                        itag = format.itag,
+                        height = format.height,
+                        url = url,
+                    )
+                }
+                .distinctBy { it.height }
 
-            val url = NewPipeExtractor.getStreamUrl(bestFormat, videoId)
-            if (url != null) return url
+            if (qualities.isNotEmpty()) return qualities
         }
 
-        return null
+        return emptyList()
     }
 
-    fun getAvailableQualities(
-        formats: List<PlayerResponse.StreamingData.Format>,
-    ): List<QualityOption> = formats
-        .filter { it.width != null && it.qualityLabel != null }
-        .distinctBy { it.qualityLabel }
-        .map { QualityOption(it.itag, it.qualityLabel ?: "?", it.height ?: 0) }
-        .sortedByDescending { it.height }
-
-    data class QualityOption(
-        val itag: Int,
-        val label: String,
-        val height: Int,
-    )
+    suspend fun getBestVideoUrl(videoId: String): String? {
+        val qualities = getVideoQualities(videoId)
+        return qualities.firstOrNull()?.url
+    }
 }
