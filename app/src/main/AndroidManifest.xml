@@ -468,7 +468,12 @@
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
             android:exported="false"
             android:launchMode="singleTop"
+            android:supportsPictureInPicture="true"
             android:theme="@style/Theme.Material3.DayNight.NoActionBar" />
+
+        <receiver
+            android:name=".pip.PipActionReceiver"
+            android:exported="false" />
 
     </application>
 
