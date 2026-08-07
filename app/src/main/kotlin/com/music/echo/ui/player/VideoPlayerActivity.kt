@@ -205,7 +205,7 @@ private fun VideoPlayerContent(
         }
     }
 
-    LaunchedEffect(showControls) {
+    LaunchedEffect(showControls, isLoading) {
         if (showControls && !isLoading) {
             delay(3000)
             showControls = false
