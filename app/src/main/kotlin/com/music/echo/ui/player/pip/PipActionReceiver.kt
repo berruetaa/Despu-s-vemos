@@ -8,6 +8,7 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.MoreExecutors
 import iad1tya.echo.music.playback.MusicService
+import iad1tya.echo.music.ui.player.VideoPlayerActivity
 
 class PipActionReceiver : BroadcastReceiver() {
     companion object {
@@ -18,6 +19,15 @@ class PipActionReceiver : BroadcastReceiver() {
     }
 
     override fun onReceive(context: Context, intent: Intent) {
+        val videoPlayer = VideoPlayerActivity.activePlayer
+        if (videoPlayer != null) {
+            when (intent.action) {
+                ACTION_PLAY -> videoPlayer.play()
+                ACTION_PAUSE -> videoPlayer.pause()
+            }
+            return
+        }
+
         val sessionToken = SessionToken(context, ComponentName(context, MusicService::class.java))
         val controllerFuture = MediaController.Builder(context, sessionToken).buildAsync()
         controllerFuture.addListener({

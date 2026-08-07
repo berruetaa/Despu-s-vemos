@@ -85,6 +85,9 @@ class VideoPlayerActivity : ComponentActivity() {
     companion object {
         const val EXTRA_VIDEO_ID = "VIDEO_ID"
         const val EXTRA_START_POSITION = "START_POSITION"
+
+        // Lets PipActionReceiver control the video's own player instead of the background audio player.
+        internal var activePlayer: ExoPlayer? = null
     }
 
     private var exoPlayer: ExoPlayer? = null
@@ -113,6 +116,19 @@ class VideoPlayerActivity : ComponentActivity() {
                     },
                     onPlayerReady = { player ->
                         exoPlayer = player
+                        activePlayer = player
+                        player.addListener(object : Player.Listener {
+                            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+                                    this@VideoPlayerActivity.isInPictureInPictureMode) {
+                                    try {
+                                        setPictureInPictureParams(
+                                            PipHelper.buildPipParams(this@VideoPlayerActivity, isPlaying, isVideo = true)
+                                        )
+                                    } catch (_: Exception) {}
+                                }
+                            }
+                        })
                     }
                 )
             }
@@ -138,6 +154,7 @@ class VideoPlayerActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        if (activePlayer === exoPlayer) activePlayer = null
         exoPlayer?.release()
         exoPlayer = null
     }
@@ -182,6 +199,7 @@ private fun VideoPlayerContent(
     onPlayerReady: (ExoPlayer) -> Unit = {},
 ) {
     val context = LocalContext.current
+    BackHandler(onBack = onBack)
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showControls by remember { mutableStateOf(true) }

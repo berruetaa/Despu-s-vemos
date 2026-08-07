@@ -21,39 +21,22 @@ object PipHelper {
     ): PictureInPictureParams {
         val aspectRatio = if (isVideo) Rational(16, 9) else Rational(1, 1)
 
-        val actions = listOf(
-            buildRemoteAction(
-                context,
-                PipActionReceiver.ACTION_PREVIOUS,
-                R.drawable.skip_previous,
-                "Previous",
-                100
-            ),
-            if (isPlaying) {
-                buildRemoteAction(
-                    context,
-                    PipActionReceiver.ACTION_PAUSE,
-                    R.drawable.pause,
-                    "Pause",
-                    101
-                )
-            } else {
-                buildRemoteAction(
-                    context,
-                    PipActionReceiver.ACTION_PLAY,
-                    R.drawable.play,
-                    "Play",
-                    101
-                )
-            },
-            buildRemoteAction(
-                context,
-                PipActionReceiver.ACTION_NEXT,
-                R.drawable.skip_next,
-                "Next",
-                102
+        val playPauseAction = if (isPlaying) {
+            buildRemoteAction(context, PipActionReceiver.ACTION_PAUSE, R.drawable.pause, "Pause", 101)
+        } else {
+            buildRemoteAction(context, PipActionReceiver.ACTION_PLAY, R.drawable.play, "Play", 101)
+        }
+
+        // A single video has no queue to skip through, unlike the background audio player.
+        val actions = if (isVideo) {
+            listOf(playPauseAction)
+        } else {
+            listOf(
+                buildRemoteAction(context, PipActionReceiver.ACTION_PREVIOUS, R.drawable.skip_previous, "Previous", 100),
+                playPauseAction,
+                buildRemoteAction(context, PipActionReceiver.ACTION_NEXT, R.drawable.skip_next, "Next", 102)
             )
-        )
+        }
 
         val builder = PictureInPictureParams.Builder()
             .setAspectRatio(aspectRatio)
