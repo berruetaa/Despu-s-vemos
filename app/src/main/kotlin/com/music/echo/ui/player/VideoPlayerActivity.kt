@@ -1,6 +1,5 @@
 package iad1tya.echo.music.ui.player
 
-import android.content.pm.ActivityInfo
 import android.os.Build
 import android.os.Bundle
 import android.view.ScaleGestureDetector
@@ -66,6 +65,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.MergingMediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
@@ -91,7 +91,6 @@ class VideoPlayerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         val videoId = intent.getStringExtra(EXTRA_VIDEO_ID) ?: run {
@@ -225,9 +224,19 @@ private fun VideoPlayerContent(
             .setUserAgent("Mozilla/5.0")
             .setConnectTimeoutMs(10000)
             .setReadTimeoutMs(10000)
-        val mediaItem = MediaItem.fromUri(quality.url)
-        val mediaSource = ProgressiveMediaSource.Factory(dataSourceFactory)
-            .createMediaSource(mediaItem)
+        val mediaSource = run {
+            val audioUrl = quality.audioUrl
+            if (audioUrl != null) {
+                val videoSource = ProgressiveMediaSource.Factory(dataSourceFactory)
+                    .createMediaSource(MediaItem.fromUri(quality.url))
+                val audioSource = ProgressiveMediaSource.Factory(dataSourceFactory)
+                    .createMediaSource(MediaItem.fromUri(audioUrl))
+                MergingMediaSource(videoSource, audioSource)
+            } else {
+                ProgressiveMediaSource.Factory(dataSourceFactory)
+                    .createMediaSource(MediaItem.fromUri(quality.url))
+            }
+        }
         exoPlayer.setMediaSource(mediaSource)
         exoPlayer.prepare()
         exoPlayer.seekTo(pos)
